@@ -1,5 +1,5 @@
 /* pages/edit-post/[id].js */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import ReactMarkdown from "react-markdown";
 import { css } from "@emotion/css";
@@ -20,6 +20,9 @@ const SimpleMDE = dynamic(() => import("react-simplemde-editor"), {
 export default function Post() {
   const [post, setPost] = useState(null);
   const [editing, setEditing] = useState(true);
+  const fileRef = useRef(null);
+  const [image, setImage] = useState(null);
+
   const router = useRouter();
   const { id } = router.query;
 
@@ -62,6 +65,8 @@ export default function Post() {
 
   async function savePostToIpfs() {
     try {
+      delete post.coverImagePath;
+      console.log(post);
       const added = await client.add(JSON.stringify(post));
       return added.path;
     } catch (err) {
@@ -78,6 +83,20 @@ export default function Post() {
     router.push("/");
   }
 
+  function triggerOnChange() {
+    /* trigger handleFileChange handler of hidden file input */
+    fileRef.current.click();
+  }
+
+  async function handleFileChange(e) {
+    /* upload cover image to ipfs and save hash to state */
+    const uploadedFile = e.target.files[0];
+    if (!uploadedFile) return;
+    const added = await client.add(uploadedFile);
+    setPost((state) => ({ ...state, coverImage: added.path }));
+    setImage(uploadedFile);
+  }
+
   if (!post) return null;
 
   return (
@@ -86,6 +105,15 @@ export default function Post() {
       /*  a markdown editor and a markdown renderer */}
       {editing && (
         <div>
+          {(image || post.coverImagePath) && (
+            <div className={imageContainerStyle}>
+              <img
+                onClick={triggerOnChange}
+                className={coverImageStyle}
+                src={image ? URL.createObjectURL(image) : post.coverImagePath}
+              />
+            </div>
+          )}
           <input
             onChange={(e) => setPost({ ...post, title: e.target.value })}
             name="title"
@@ -99,9 +127,21 @@ export default function Post() {
             value={post.content}
             onChange={(value) => setPost({ ...post, content: value })}
           />
+          <input
+            id="selectImage"
+            className={hiddenInput}
+            type="file"
+            onChange={handleFileChange}
+            ref={fileRef}
+          />
           <button className={button} onClick={updatePost}>
             Update post
           </button>
+          {!post.coverImagePath && (
+            <button onClick={triggerOnChange} className={button}>
+              Add cover image
+            </button>
+          )}
         </div>
       )}
       {!editing && (
@@ -124,6 +164,10 @@ export default function Post() {
     </div>
   );
 }
+
+const hiddenInput = css`
+  display: none;
+`;
 
 const button = css`
   background-color: #fafafa;
@@ -156,6 +200,30 @@ const mdEditor = css`
 
 const coverImageStyle = css`
   width: 900px;
+`;
+
+const imageContainerStyle = css`
+  position: relative;
+
+  &:hover {
+    opacity: 0.7;
+  }
+
+  &:hover::before {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    content: "Edit";
+    background-color: #fafafa;
+    border-radius: 15px;
+    cursor: pointer;
+    margin-right: 10px;
+    margin-top: 15px;
+    font-size: 18px;
+    padding: 16px 70px;
+    box-shadow: 7px 7px rgba(0, 0, 0, 0.1);
+  }
 `;
 
 const container = css`
